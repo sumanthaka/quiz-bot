@@ -1,4 +1,3 @@
-
 from .constants import BOT_WELCOME_MESSAGE, PYTHON_QUESTION_LIST
 
 
@@ -6,7 +5,7 @@ def generate_bot_responses(message, session):
     bot_responses = []
 
     current_question_id = session.get("current_question_id")
-    if not current_question_id:
+    if current_question_id is None:
         bot_responses.append(BOT_WELCOME_MESSAGE)
 
     success, error = record_current_answer(message, current_question_id, session)
@@ -15,7 +14,6 @@ def generate_bot_responses(message, session):
         return [error]
 
     next_question, next_question_id = get_next_question(current_question_id)
-
     if next_question:
         bot_responses.append(next_question)
     else:
@@ -29,24 +27,48 @@ def generate_bot_responses(message, session):
 
 
 def record_current_answer(answer, current_question_id, session):
-    '''
+    """
     Validates and stores the answer for the current question to django session.
-    '''
+    """
+    if current_question_id is None:
+        session["answer"] = []
+        return True, ""
+    try:
+        session["answer"].append({"id": current_question_id, "answer": answer})
+        session.save()
+    except Exception as e:
+        return False, str(e)
     return True, ""
 
 
 def get_next_question(current_question_id):
-    '''
+    """
     Fetches the next question from the PYTHON_QUESTION_LIST based on the current_question_id.
-    '''
+    """
+    if current_question_id is None:
+        current_question_id = -1
+    
+    next_question_id = current_question_id + 1
 
-    return "dummy question", -1
+    if next_question_id >= len(PYTHON_QUESTION_LIST):
+        return False, -1
+    
+    question_text = PYTHON_QUESTION_LIST[next_question_id]["question_text"]
+    options = PYTHON_QUESTION_LIST[next_question_id]["options"]
+    for choice in range(len(options)):
+        question_text += "<br />" + options[choice]
+    return question_text, next_question_id
 
 
 def generate_final_response(session):
-    '''
+    """
     Creates a final result message including a score based on the answers
     by the user for questions in the PYTHON_QUESTION_LIST.
-    '''
+    """
+    answers = session.get("answer")
+    score = 0
+    for answer in answers:
+        if answer["answer"] == PYTHON_QUESTION_LIST[answer["id"]]["answer"]:
+            score += 1
 
-    return "dummy result"
+    return f"Thank you for taking the quiz. You scored {score}"
